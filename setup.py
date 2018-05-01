@@ -16,6 +16,7 @@ setup(
     version='0.0.1',
     description='A python project for empirical methods',
     author='Jason R Becker',
+    author_email='jasonrichardbecker@gmail.com',
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
@@ -23,7 +24,11 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.6',
     ],
-    download_url = 
-    keywords='empirical latex OLS',
+      url='https://github.com/jason-r-becker/empiricalutilities',
+    download_url='https://github.com/jason-r-becker/empiricalutilities/archive/0.1.tar.gz',
+    keywords=['empirical latex OLS'],
     packages=find_packages(exclude=['contrib', 'docs', 'tests'])
+    install_requires=['cycler', 'kiwisolver', 'matplotlib', 'mpmath', 'numpy', 'pandas',
+                      'patsy', 'pprint', 'pyparsing', 'pytz', 'scipy', 'seaborn', 'six',
+                      'statsmodels', 'sympy', 'tabulate']
 )
