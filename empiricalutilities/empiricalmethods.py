@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy import stats
+from scipy import stats, optimize
 from sympy import Matrix, solve_linear_system, var
+from IPython.display import display
 
-import utilities as ut
-
+from .utilities import prettyPrint
 
 class OLS:
     """
@@ -79,6 +79,7 @@ class OLS:
 
         # Use model to evaluate residuals and MSE
         self.preds = np.dot(X, coeffs)
+        results['preds'] = self.preds
         e = Y - self.preds
         mse = np.dot(e, e) / (n - k)
         results['resids'] = e
@@ -243,8 +244,18 @@ class OLS:
         :return: print table of results to screen
         """
 
-        ut.prettyPrint(results['summary'])
-        ut.prettyPrint(results['table'])
+        prettyPrint(results['summary'])
+        prettyPrint(results['table'])
+    
+    def jsummary(self, results):
+        """
+        Print summary of results including all test statistics in Jupyter Notebook
+        :param results: dict; OLS.fit() results
+        :return: display table of results in Jupyter Notebook
+        """
+    
+        display(results['summary'])
+        display(results['table'])
 
     def plot_single_variable(self, results, xlab=None, ylab=None, save=None):
         """
@@ -274,6 +285,231 @@ class OLS:
             plt.savefig('{}.png'.format(save), dpi=200)
         plt.show()
 
+class AR:
+    
+    def __init__(self, X, p=1):
+        self.x = np.asarray(X)
+        # create dataframe of lags
+        self.lags = pd.DataFrame()
+        for i in range(p):
+            self.lags['phi_{}'.format(i)] = self.x[i:-p+i]
+        self.lags['phi_{}'.format(p)] = self.x[p:]
+        self.lags.dropna(inplace=True)
+        
+        self.y = np.array(self.lags['phi_0'])
+        self.lags.drop(['phi_0'], axis=1, inplace=True)
+    
+    def fit(self, kendall_correction=False):
+        """
+            AR(p) OLS results of AR(1) model
+            :param self.t0: ndarray; x_(t) values to run AR model on.
+            :param self.lags: dataframe; columns of x_(t-1), x_(t-2), ..., x_(t-p) lags for AR model.
+            :param kendall_correction: boolean; if True, perform Kendall correction on phi for phi ~ 1
+            :return: Dictionary of OLS results
+            """
+        
+        # Run OLS
+        mod = eu.OLS(self.y, self.lags)
+        res = mod.fit()
+        
+        # Kendall correction
+        if kendall_correction:
+            for i, phi in enumerate(res['coeffs'][1:]):  # remove constant coefficient
+                if phi > 0.98:
+                    phi_cor = phi + (1+3*phi) / len(self.y)
+                    print('phi_{} after Kendall Correction: {:.5f}'.format(i + 1, phi_cor))
+        else:
+            for i, phi in enumerate(res['coeffs'][1:]):  # remove constant coefficient
+                if phi > 0.98:
+                    print('Warning: phi_{} = {:.5f}, may be persistent'.format(i + 1, phi))
+        return res
+    
+    def summary(self, results, prec=3):
+        """
+        Print summary of results including all test statistics
+        :param results: Dictionary of OLS.fit() results
+        :return: print table of results to screen
+        """
+        
+        prettyPrint(results['summary'])
+        prettyPrint(results['table'])
+
+    def jsummary(self, results):
+        """
+        Print summary of results including all test statistics in Jupyter Notebook
+        :param results: dict; OLS.fit() results
+        :return: display table of results in Jupyter Notebook
+        """
+            
+        display(results['summary'])
+        display(results['table'])
+
+class ARCH_1:
+    """
+        ARCH(1) model with attributes fit() and predict()
+        """
+    def __init__(self, r):
+        self.raw_ret = r
+        self.ret = np.array(r.dropna())
+        self.params = None
+        self.err = None
+    
+    def fit(self, n):
+        """
+        Run ARCH(1) model n times, saving returning result with lowest standard error
+        :param n: int; number of ARCH(1) models to run
+        :return: (ndarray, ndarray); (parameter estimates, standard errors)
+        for ARCH(1) model with minimum sum of standard errors
+        """
+        
+        def log_likelihood_ARCH(theta, X):
+            """
+            Returns log likelihood of ARCH(1) model
+            :param X: array: values to run ARCH model on
+            :return: float: log likelihood
+            """
+            
+            # Initialize variables
+            x_t = X[1:-1]  # x(t)
+            x_lag = X[:-2]  # x(t-1)
+            
+            # Compute residuals
+            err = x_t - theta[0] - theta[1]*x_lag
+            err_t = err[1:]
+            err_lag = err[:-1]
+            
+            # Log likelihood function
+            h_t = theta[2] + theta[3]*err_lag**2
+            llf = 0.5 * np.sum(np.log(2*np.pi) + np.log(h_t) + err_t**2/h_t)
+            return llf
+        
+        def single_run(ret):
+            """
+            Single ARCH Model run
+            """
+            theta0 = 0.001 + np.random.rand(4)
+            bnds = ((0.001, 1), (0.001, 1), (0.001, 1), (0.001, 1))
+            res = optimize.minimize(log_likelihood_ARCH, theta0, args=ret, bounds=bnds, method='L-BFGS-B')
+            hess_inv = res.hess_inv.todense()
+            se = np.array(np.sqrt(np.diag(hess_inv)))
+            return res.x, se
+        
+        params = []
+        err = []
+        sum_err = np.zeros(n)
+        for i in range(n):
+            param_i, err_i = single_run(self.ret)
+            params.append(param_i)
+            err.append(err_i)
+            sum_err[i] = np.sum(err_i)
+        opt = int(np.argmin(sum_err))
+        self.params = params[opt]
+        self.err = err[opt]
+        return params[opt], err[opt]
+    
+    def predict(self):
+        # Initialize variables
+        x_t = self.ret[1:-1]  # x(t)
+        x_lag = self.ret[:-2]  # x(t-1)
+        
+        # Compute residuals
+        err = x_t - self.params[0] - self.params[1]*x_lag
+        err_lag = err[:-1]
+        
+        h_t = self.params[2] + self.params[3]*err_lag**2
+        
+        # Add results to original index
+        preds = pd.Series(index=self.raw_ret.index)
+        preds[-len(h_t) - 1:-1] = np.sqrt(h_t)
+        return preds
+
+class GARCH_11:
+    """
+    CH(1,1) model with attributes fit() and predict()
+    """
+    
+    def __init__(self, r):
+        self.raw_ret = r
+        self.ret = np.array(r.dropna())
+        self.params = None
+        self.err = None
+    
+    def fit(self, n):
+        """
+        Run GARCH(1,1) model n times, saving returning result with lowest standard error
+        :param n: int; number of GARCH(1,1) models to run
+        :return: (ndarray, ndarray); (parameter estimates, standard errors)
+        for GARCH(1,1) model with minimum sum of standard errors
+        """
+        
+        def log_likelihood_GARCH(theta, X):
+            """
+            Returns log likelihood of ARCH(1) model
+            :param X: array: values to run ARCH model on
+            :return: float: log likelihood
+            """
+            
+            # Initialize variables
+            x_t = X[1:-1]  # x(t)
+            x_lag = X[:-2]  # x(t-1)
+            
+            # Compute residuals
+            err = x_t - theta[0] - theta[1]*x_lag
+            err_t = err[1:]
+            err_lag = err[:-1]
+            
+            h_t = np.zeros(len(err_t))
+            h_t[0] = theta[2] + theta[3]*err_lag[0]**2
+            for i in range(1, len(h_t)):
+                h_t[i] = theta[2] + theta[3]*err_lag[i]**2 + theta[4]*h_t[i-1]
+            
+            # Log likelihood function
+            llf = 0.5 * np.sum(np.log(2*np.pi) + np.log(h_t) + err_t**2/h_t)
+            return llf
+        
+        def single_run(ret):
+            """
+            Single ARCH Model run
+            """
+            theta0 = 0.001 + np.random.rand(5)
+            theta0[4] = 0.9
+            bnds = ((0.001, 1), (0.001, 1), (0.0001, 1), (0.001, 1), (0.001, 1))
+            res = optimize.minimize(log_likelihood_GARCH, theta0, args=ret, bounds=bnds, method='L-BFGS-B')
+            hess_inv = res.hess_inv.todense()
+            se = np.array(np.sqrt(np.diag(hess_inv)))
+            return res.x, se
+        
+        params = []
+        err = []
+        sum_err = np.zeros(n)
+        for i in range(n):
+            param_i, err_i = single_run(self.ret)
+            params.append(param_i)
+            err.append(err_i)
+            sum_err[i] = np.sum(err_i)
+        opt = int(np.argmin(sum_err))
+        self.params = params[opt]
+        self.err = err[opt]
+        return params[opt], err[opt]
+    
+    def predict(self):
+        # Initialize variables
+        x_t = self.ret[1:-1]  # x(t)
+        x_lag = self.ret[:-2]  # x(t-1)
+        
+        # Compute residuals
+        err = x_t - self.params[0] - self.params[1]*x_lag
+        err_lag = err[:-1]
+        
+        h_t = self.params[2] + self.params[3]*err_lag**2
+        h_t[0] = self.params[2] + self.params[3]*err_lag[0]**2
+        for i in range(1, len(h_t)):
+            h_t[i] = self.params[2] + self.params[3]*err_lag[i]**2 + self.params[4]*h_t[i-1]
+        
+        # Add results to original index
+        preds = pd.Series(index=self.raw_ret.index)
+        preds[-len(h_t) - 1:-1] = np.sqrt(h_t)
+        return preds
 
 def sym_solve_matrix(A, b):
     """

@@ -1,13 +1,12 @@
 Metadata-Version: 1.1
 Name: empiricalutilities
-Version: 0.0.1
+Version: 0.0.9
 Summary: A python project for empirical methods
 Home-page: https://github.com/jason-r-becker/empiricalutilities
 Author: Jason R Becker
 Author-email: jasonrichardbecker@gmail.com
 License: UNKNOWN
 Download-URL: https://github.com/jason-r-becker/empiricalutilities/archive/0.1.tar.gz
-Description-Content-Type: UNKNOWN
 Description: UNKNOWN
 Keywords: empirical latex OLS
 Platform: UNKNOWN

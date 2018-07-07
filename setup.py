@@ -13,7 +13,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='empiricalutilities',
-    version='0.0.1',
+    version='0.0.9',
     description='A python project for empirical methods',
     author='Jason R Becker',
     author_email='jasonrichardbecker@gmail.com',
@@ -27,7 +27,7 @@ setup(
       url='https://github.com/jason-r-becker/empiricalutilities',
     download_url='https://github.com/jason-r-becker/empiricalutilities/archive/0.1.tar.gz',
     keywords=['empirical latex OLS'],
-    packages=find_packages(exclude=['contrib', 'docs', 'tests'])
+      packages=find_packages(exclude=['contrib', 'docs', 'tests', 'build']),
     install_requires=['cycler', 'kiwisolver', 'matplotlib', 'mpmath', 'numpy', 'pandas',
                       'patsy', 'pprint', 'pyparsing', 'pytz', 'scipy', 'seaborn', 'six',
                       'statsmodels', 'sympy', 'tabulate']

@@ -1,7 +1,14 @@
+LICENSE.txt
+MANIFEST.in
 README.md
+requirements.txt
 setup.cfg
 setup.py
+empiricalutilities/__init__.py
+empiricalutilities/empiricalmethods.py
+empiricalutilities/utilities.py
 empiricalutilities.egg-info/PKG-INFO
 empiricalutilities.egg-info/SOURCES.txt
 empiricalutilities.egg-info/dependency_links.txt
+empiricalutilities.egg-info/requires.txt
 empiricalutilities.egg-info/top_level.txt
