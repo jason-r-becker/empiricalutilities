@@ -169,8 +169,20 @@ def color_table(df, title=None, rev_index=None):
     plt.yticks(rotation=0)
     plt.show()
 
+def replace_multiple(text, dic):
+    """replace multiple text fragments in a string"""
+    for i, j in dic.items():
+        text = text.replace(i, j)
+    return text
 
-def latex_print(obj, prec=3, col_fmt=None, adjust=False, hide_index=False, matrix_type='b'):
+def latex_print(obj,
+                prec=3,
+                col_fmt=None,
+                adjust=False,
+                hide_index=False,
+                matrix_type='b',
+                int_vals=False,
+                ):
     """
     Returns object with syntax formatted for LaTeX
     :param obj: ndarray, matrix, list, dataframe; object to convert for printing in LaTeX
@@ -187,8 +199,6 @@ def latex_print(obj, prec=3, col_fmt=None, adjust=False, hide_index=False, matri
         y = ['{:.{}f}'.format(elem, prec) for elem in list(obj)]
         y = ',\ '.join(y)
         y = '[' + y + ']'
-
-        # Print
         print(y)
 
     # DataFrame
@@ -212,10 +222,15 @@ def latex_print(obj, prec=3, col_fmt=None, adjust=False, hide_index=False, matri
         # Print
         print()
         print(r'﻿\begin{table}[H]')
+        print(r'% caption{}')
         print(r'\centering')
         if adjust:
             print(r'\begin{adjustbox}{width =\textwidth}')
-        print(obj.to_latex(column_format=fmt))
+        if int_vals:
+            reps = {'.{} '.format('0'*i): '  '+' '*ifor i in range(1, 10)}
+            print(replace_multiple(obj.to_latex(column_format=fmt), reps))
+        else:
+            print(obj.to_latex(column_format=fmt))
         if adjust:
             print(r'\end{adjustbox}')
         print(r'\end{table}')
@@ -223,7 +238,6 @@ def latex_print(obj, prec=3, col_fmt=None, adjust=False, hide_index=False, matri
 
     # Matrix
     elif isinstance(obj, np.matrix):
-
         if len(obj.shape) > 2:
             raise ValueError('matrix can at most display two dimensions')
         robj = obj.round(prec)
@@ -241,6 +255,7 @@ def latex_print(obj, prec=3, col_fmt=None, adjust=False, hide_index=False, matri
             raise ValueError("Error: matrix_type must be 'b' or 'p'")
         print('\n'.join(rv), '\n')
         print()
+
     elif isinstance(obj, np.ndarray):
         if len(obj.shape) == 1:
             y = ['{:.{}f}'.format(elem, prec) for elem in list(obj)]
@@ -251,3 +266,101 @@ def latex_print(obj, prec=3, col_fmt=None, adjust=False, hide_index=False, matri
             latex_print(np.matrix(obj))
     else:
         print('Error: datatype: {} is not defined in function latex_print')
+
+def dsub(df, start=None, end=None):
+    """
+    Subset DataFrame to given period
+
+    :param df: DataFrame; dataframe of values
+    :param start: str; start date, fmt = '%m/%d/%Y'
+    :param end: str; end date, fmt = '%m/%d/%Y'
+    :return: DataFrame subset to given dates
+    """
+
+    if start:
+        df = df[df.index >= pd.to_datetime(start, format='%m/%d/%Y')]
+    if end:
+        df = df[df.index <= pd.to_datetime(end, format='%m/%d/%Y')]
+    return df
+
+def datetime_range(start, end, minute_delta):
+    """
+    Create list of dates with constant timedelta.
+
+    :param: start; datetime obj; starting date
+    :param: end; datetime obj; ending date
+    :param: delta: datetime timedelta obj; time delta between returned values
+    :return: list of datetime objects
+    """
+
+    def dt_gen(start, end, delta):
+        """Create generator of datetimes with given timedelta"""
+        current = start
+        while current < end:
+            yield current
+            current += delta
+
+    return [dt for dt in dt_gen(start, end, timedelta(minutes=minute_delta))]
+
+def plot_explained_variance(ev, type='bar', toff=0.02, boff=0.08, yoff=None, **kwargs):
+    """Plot explained variance of PCA
+
+    Parameters
+    ----------
+    ev: nd.array()
+        explained variance values
+    type: str, default='bar'
+        - 'bar': bar plots for cumulative variance
+        - 'line': line plot for cumulative variance
+    toff: float
+        top x offset for cumulative variance values on plot
+    boff: float
+        bottom x offset for individual variance values on plot
+    yoff: float
+        tottom y offset for individual variance values on plot
+    **kwargs:
+        kwargs for plt.plot() if type==line for cumulative variance
+    """
+
+    ax = pd.Series(100*ev).plot(kind='bar', figsize=(10,5),
+                   color='steelblue', fontsize=13)
+
+    ax.set_ylabel('Explained Variance')
+    ax.set_yticks([0, 20, 40, 60, 80, 100])
+    ax.set_xlabel('Principal Component')
+
+    # create a list to collect the plt.patches data
+    totals = []
+    # find the values and append to list
+    for i in ax.patches:
+        totals.append(i.get_height())
+
+    # set individual bar lables using above list
+    total = sum(totals)
+
+    yoff_d = {'bar': 0, 'line': 0.2}
+    yoff_d[type] = yoff if yoff else yoff_d[type]
+
+    # set individual bar lables using above list
+    for j, i in enumerate(ax.patches):
+        # get_x pulls left or right; get_height pushes up or down
+        if j > 0:
+            ax.text(i.get_x()+boff, i.get_height()+1,
+                    str(round(100*ev[j], 1))+'%', fontsize=11,
+                    color='dimgrey')
+        ax.text(i.get_x()+toff, 100*np.cumsum(ev)[j]+1+yoff,
+                str(round(100*np.cumsum(ev)[j], 1))+'%', fontsize=12,
+                color='dimgrey')
+
+    xlab = [f'PC-{i+1}' for i, _ in enumerate(ax.patches)]
+    if type == 'bar':
+        ax2 = pd.Series(np.cumsum(100*ev)).plot(kind='bar', figsize=(10,5),
+                   color='steelblue', fontsize=8, alpha=0.25)
+        for i in ax2.patches:
+            totals.append(i.get_height())
+        ax2.set_xticklabels(xlab, rotation='horizontal')
+        ax2.xaxis.grid(False)
+    elif type == 'line':
+        plt.plot(np.cumsum(100*ev), ':o', ms=8, c='steelblue', alpha=0.75, **kwargs)
+        ax.xaxis.grid(False)
+        ax.set_xticklabels(xlab, rotation='horizontal')

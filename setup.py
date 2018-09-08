@@ -13,7 +13,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='empiricalutilities',
-    version='0.0.9',
+    version='0.0.10',
     description='A python project for empirical methods',
     author='Jason R Becker',
     author_email='jasonrichardbecker@gmail.com',
