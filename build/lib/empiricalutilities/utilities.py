@@ -3,6 +3,7 @@ import pandas as pd
 import pprint
 import matplotlib.pyplot as plt
 import seaborn as sns
+import re
 
 from matplotlib import cm
 from tabulate import tabulate
@@ -20,11 +21,7 @@ class Memoize:
 
 
 def prettyPrint(obj):
-    """
-    Prints object to console with nice asethetic
-    :param obj: dataframe, ndarray; object to print
-    :return: None
-    """
+    """Print object to screen in nice formatting"""
     if isinstance(obj, pd.DataFrame):
         print(tabulate(obj, headers='keys', tablefmt='psql'))
     elif isinstance(obj, dict):
@@ -33,52 +30,36 @@ def prettyPrint(obj):
     else:
         raise ValueError('Error: {} not yet supported'.format(type(obj)))
 
-def create_df(columns, header, index=None):
-    """
-    Create Dataframe from given index and columns.
-    :param columns: list[list]; lists containing col values
-    :param header: list[str]; column names
-    :param index: list; index values
-    :return: DataFrame
-    """
 
-    # Ensure columns is list of list and header is list of str
-    if not isinstance(columns, list):
-        cols = [columns]
-    else:
-        cols = columns
+def custom_sort(str_list, alphabet):
+    """Custom sort of list of strings for given alphabet"""
+    # Add all unique characters in list to end of provided alphabet.
+    alphabet = alphabet + ''.join(list(set(''.join(str_list))))
 
-    if not isinstance(header, list):
-        head = [header]
-    else:
-        head = header
-
-    # Create dict.
-    d = {}
-    if index:
-        d['index'] = index
-
-    for h, c in zip(head, cols):
-        d[h] = c
-
-    # Convert dict to Dataframe.
-    df = pd.DataFrame.from_dict(d)
-    if index:
-        df.set_index('index', inplace=True)
-
-    return df
+    # Sort list with alphabet.
+    return sorted(str_list, key=lambda x: [alphabet.index(c) for c in x])
 
 def add_start(df, start_date):
     """
     Adds row of NaN values to dataframe with specified time index
-    :param df: dataframe; old dataframe to be updated
-    :param start_date: str; date to enter in dataframe
-    :return: dataframe; updated dataframe with new index
+
+    Parameters
+    ----------
+    df: pd.DataFrame
+        input DataFrame
+    start_date: str
+        date to enter in dataframe
+
+    Returns
+    -------
+    new_df: pd.DataFrame
+        updated dataframe with empty row of added index
     """
-    start = pd.to_datetime(start_date)
+
+    sd = pd.to_datetime(start_date)
 
     # Create time 0 dataframe row to insert
-    t0 = {'time': start}
+    t0 = {'time': sd}
     for col in list(df):
         t0[col] = None
     t0 = pd.DataFrame([t0], columns=t0.keys())
@@ -89,44 +70,81 @@ def add_start(df, start_date):
     new_df.sort_index(inplace=True)
     return new_df
 
-def combine_standard_errors(vals, errs, latex_format=True):
-    """
-        Combines standard errors and values into dataframe to print in LaTeX
-        :param vals: dataframe; values for table
-        :param errs: dataframe; respective errors for values
-        :param latex_format: boolean; what str to us to join vals and errs, {True: ' pm ', False: ' +/- '}
-        :return: dataframe; values +/- se
-        """
+def find_max_locs(df):
+    """Find iloc location of maximum values in pd.DataFrame"""
+    num_df = df.apply(pd.to_numeric, errors='coerce').values
+    row_max = num_df.max(axis=1)
+    ij_max = []
 
-    def err_table(val, err, join):
-        """
-            Given a column of values and a column of respective errors,
-            return single column of joined val +/- err
-            """
+    for i, i_max in enumerate(row_max):
+        if np.isnan(i_max):  # ignore nan values
+            continue
+        for j in range(num_df.shape[1]):
+            if num_df[i, j] == i_max:
+                ij_max.append((i, j))
+    return(ij_max)
+
+def combine_errors_table(vals, errs, latex_format=False):
+    """
+    Combines standard errors and values into DataFrame.
+
+    Parameters
+    ----------
+    vals: pd.DataFrame
+        values for table
+    errs: pd.DataFrame
+        errors for values
+    latex_format: bool
+        characters to use to separate values and errors
+        {True: ' pm ', False: ' +/- '}
+
+    Returns
+    -------
+    df: pd.DataFrame
+        DataFrame of values +/- errors
+    """
+
+    def build_error_column(val, err, sep):
+        """Combine single column of values and errors with specifed separator"""
         v_e = []
         for i, (v, e) in enumerate(zip(val, err)):
-            v_e.append('{} {} {}'.format(v, join, e))
+            v_e.append('{} {} {}'.format(v, sep, e))
         return np.asarray(v_e)
 
     if vals.size != errs.size:
-        raise ValueError("Error: vals is size: {}, while errs is is size: {}.".format(vals.size, errs.size))
+        raise ValueError(f'vals size {vals.size} does not match errs {err.size}')
     df = pd.DataFrame(index=vals.index)
 
-    pm = 'pm' if latex_format else '+/-'
-    for col in list(vals):
-        df[col] = err_table(vals[col], errs[col], join=pm)
+    sep = 'pm' if latex_format else '+/-'
+    for col in vals.columns:
+        df[col] = build_error_column(vals[col], errs[col], sep=sep)
     return df
 
-def correlation(data, col='return', exclude=None, values=False, show=False, save=False, ret_col=False):
-    if exclude is not None:
-        data.drop(exclude, axis=1, inplace=True)
+def correlation(df, sort_col=None, plot=False):
+    """
+    Find correlation of DataFrame, plot results and/or
+    return sorted correlations for a sincle column of
+    the DataFrame.
 
-    corr = data.corr().abs()
+    Parameters
+    ----------
+    df: pd.DataFrame
+        DataFrame of input values
+    sort_col: str, default=None
+        column to sort correlations on. If provided,
+        function returns DataFrame of results
+    plot: bool, default=False
+        if True plot correlation matrix
 
-    if values:
-        print(corr.sort_values([col], ascending=False)[col][1:])
+    Returns
+    -------
+    plot of correlation matrix if plot=True
+    correlation results for one column if sort_col is True
+    """
 
-    if show:
+    corr = df.corr().abs()
+
+    if plot:
         # Plot results
         fig, ax = plt.subplots(figsize=(12, 10))
         ax.matshow(corr)
@@ -138,21 +156,30 @@ def correlation(data, col='return', exclude=None, values=False, show=False, save
             tick.set_rotation(45)
         cax.set_clim([0, 1])
         fig.colorbar(cax, ticks=[0, .25, .5, .75, 1])
-        if save:
-            plt.savefig('correlation_plot.png', bbox_inches='tight', format='png')
-        plt.show()
+
 
     if ret_col:
         return corr.sort_values([col], ascending=False)[col][1:]
 
 
-def color_table(df, title=None, rev_index=None):
+def color_table(df, title=None, rev_index=None, color='RdYlGn'):
     """
     Creates color coded comparison table from dataframe values (green high, red low)
-    :param df: dataframe; table of values
-    :param title: str; title for table
-    :param rev_index: str list; list of column valuse to reverse color coding (red high, green low)
-    :return: Plot of color coded table
+
+    Parameters
+    ----------
+    df: pd.DataFrame
+        DataFrame of values
+    title: str
+        title for table
+    rev_index: list(str)
+        list of column names to reverse color coding
+    color: str, default='RdYlGn'
+        color palette for table
+
+    Returns
+    -------
+        plot of color coded table
     """
     labels = df.values
     norm_df = df.divide(np.max(df), axis=1)
@@ -164,10 +191,11 @@ def color_table(df, title=None, rev_index=None):
     plt.figure()
     if title:
         plt.title(title)
-    sns.heatmap(norm_df, cmap='RdYlGn', linewidths=0.5, annot=labels, fmt='0.1f', cbar=False)
+    sns.heatmap(norm_df, cmap='RdYlGn', linewidths=0.5, annot=labels,
+                fmt='0.1f', cbar=False)
     plt.xticks(rotation=0)
     plt.yticks(rotation=0)
-    plt.show()
+
 
 def replace_multiple(text, dic):
     """replace multiple text fragments in a string"""
@@ -177,22 +205,64 @@ def replace_multiple(text, dic):
 
 def latex_print(obj,
                 prec=3,
+                matrix_type='b',
                 col_fmt=None,
+                caption=None,
                 adjust=False,
                 hide_index=False,
-                matrix_type='b',
                 int_vals=False,
+                font_size=None,
+                multi_col_header=False,
+                bold_locs=None,
                 ):
-    """
+
+    r"""
     Returns object with syntax formatted for LaTeX
-    :param obj: ndarray, matrix, list, dataframe; object to convert for printing in LaTeX
-    :param prec: int; precision for printing decimals
-    :param col_fmt: str, column format for latex, (e.g., 'lrc')
-    :param adjust: boolean; adjust formatting to fit in LaTeX page width for large tables & arrays
-    :param hide_index: boolean, if True remove index from printing in LaTeX
-    :param matrix_type: str; style for matrix in latex {'b': bracket, 'p': paranthesis}
-    :return: LaTeX formatted object
+
+    Parameters
+    ----------
+
+    obj: {ndarray, matrix, list, pd.Series, pd.DataFrame}
+        object to convert for printing in LaTeX
+    prec: int
+        precision for printing decimals
+
+    Matrix Parameters
+    -----------------
+    matrix_type: str
+        style for matrix in latex
+        {'b': bracket, 'p': paranthesis}
+
+    DataFrame Parameters
+    --------------------
+    col_fmt: str
+        column format for latex, (e.g., 'lrc')
+    caption: str
+        add caption to table
+    adjust: bool
+        if True, adjust formatting to fit in LaTeX page
+        width for large tables & arrays
+         - requires \usepackage{adjustbox} in LaTeX preamble
+    hide_index: bool
+        if True remove index from printing in LaTeXint_vals: bool
+        if True, remove decimal places if all are 0
+        (e.g., 3.00 --> 3)
+    font_size: str
+        font size for tables
+        {'tiny', 'scriptsize', 'footnotesize', 'small', 'normalsize',
+        'large', 'Large', 'LARGE', 'huge', 'Huge'}
+    multi_col_header: bool
+        if True, use \thead to make header column multiple lines.
+            - expects '*' as separator between lines in header column
+            - requires \usepackage{makecell} in LaTeX preamble
+    bold_locs: list(tuples)
+        ilocs of table values to bold
+
+    Returns
+    -------
+    prints LaTeX formatted object to screen
     """
+
     # Series
     if isinstance(obj, pd.Series):
         # Format to LaTeX list
@@ -203,34 +273,68 @@ def latex_print(obj,
 
     # DataFrame
     elif isinstance(obj, pd.DataFrame):
-        # Format columns
+        # Format columns.
         if col_fmt:
             fmt = col_fmt
         else:
             fmt = 'l' + 'c'*len(list(obj))
 
-        # Round values
+        # Round values.
         obj = obj.round(prec)
 
         # Hide index if required
         if hide_index:
             obj.index = ['{}' for i in obj.index]
 
-        # Remove NaN's
+        # Remove NaN's.
         obj = obj.replace(np.nan, '-', regex=True)
 
-        # Print
+        # Print table settings.
         print()
         print(r'﻿\begin{table}[H]')
-        print(r'% caption{}')
+        if font_size:
+            print(r'\{}'.format(font_size))
+        if caption:
+            print(r'\caption{{{}}}'.format(caption))
+        else:
+            print(r'%\caption{}')
         print(r'\centering')
         if adjust:
             print(r'\begin{adjustbox}{width =\textwidth}')
+
+        # Bold values if required.
+        if bold_locs:
+            for loc in bold_locs:
+                obj.iloc[loc] = '\textbf{{{}}}'.format(obj.iloc[loc])
+
+        # Replace improperly formatted values in table.
+        reps = {}
+
         if int_vals:
-            reps = {'.{} '.format('0'*i): '  '+' '*ifor i in range(1, 10)}
-            print(replace_multiple(obj.to_latex(column_format=fmt), reps))
-        else:
-            print(obj.to_latex(column_format=fmt))
+            reps = {'.{} '.format('0'*i): '  '+' '*i for i in range(1, 10)}
+
+        if multi_col_header:
+            header = obj.to_latex().split('toprule\n')[1].split('\\\\\n\midrule')[0]
+            new_header = ''
+            for i, h in enumerate(header.split('&')):
+                if i == 0:
+                    new_header += '{}\n'
+                elif i == len(header.split('&'))-1:
+                    new_header += '& \\thead{{{}}}'.format(h).replace('*', '\\\\')
+                else:
+                    new_header += '& \\thead{{{}}}\n'.format(h).replace('*', '\\\\')
+            reps[header] = new_header
+
+        reps['\$'] = '$'
+        reps[r'\textbackslash '] = '\\'
+        reps['\{'] = '{'
+        reps['\}'] = '}'
+        reps['\_'] = '_'
+
+        # Print table.
+        print(replace_multiple(obj.to_latex(column_format=fmt), reps), end='')
+
+        # Print end of table settings.
         if adjust:
             print(r'\end{adjustbox}')
         print(r'\end{table}')
@@ -267,30 +371,47 @@ def latex_print(obj,
     else:
         print('Error: datatype: {} is not defined in function latex_print')
 
-def dsub(df, start=None, end=None):
+def date_subset(df, start=None, end=None):
     """
     Subset DataFrame to given period
 
-    :param df: DataFrame; dataframe of values
-    :param start: str; start date, fmt = '%m/%d/%Y'
-    :param end: str; end date, fmt = '%m/%d/%Y'
-    :return: DataFrame subset to given dates
+    Parameters
+    ----------
+    df: pd.DataFrame
+        DataFrame of values
+    start: {str, datetime obj, Timestamp}, default None
+        start date, str fmt = '%m/%d/%Y'
+    end: {str, datetime obj, Timestamp}, default None
+        end date, str fmt = '%m/%d/%Y'
+
+    Returns
+    -------
+    df: pd.DataFrame
+        DataFrame subset to given dates
     """
 
     if start:
-        df = df[df.index >= pd.to_datetime(start, format='%m/%d/%Y')]
+        df = df[df.index >= pd.to_datetime(start, infer_datetime_format=True)]
     if end:
-        df = df[df.index <= pd.to_datetime(end, format='%m/%d/%Y')]
+        df = df[df.index <= pd.to_datetime(end, infer_datetime_format=True)]
     return df
 
 def datetime_range(start, end, minute_delta):
     """
     Create list of dates with constant timedelta.
 
-    :param: start; datetime obj; starting date
-    :param: end; datetime obj; ending date
-    :param: delta: datetime timedelta obj; time delta between returned values
-    :return: list of datetime objects
+    Parameters
+    ----------
+    start: datetime obj
+        starting date
+    end datetime obj
+        ending date
+    minute_delta: int
+        number of minutes for time delta
+
+    Returns
+    -------
+    list of datetime objects
     """
 
     def dt_gen(start, end, delta):
@@ -302,12 +423,44 @@ def datetime_range(start, end, minute_delta):
 
     return [dt for dt in dt_gen(start, end, timedelta(minutes=minute_delta))]
 
-def plot_explained_variance(ev, type='bar', toff=0.02, boff=0.08, yoff=None, **kwargs):
-    """Plot explained variance of PCA
+def remove_outer_periods(df, cols, starts, ends):
+    """
+    Replace all vales outside of specifed ranges
+    in DataFrame columns with NaN's
 
     Parameters
     ----------
-    ev: nd.array()
+    df: pd.DataFrame
+        DataFrame of values
+    cols: list(str)
+        column names
+    starts: list(datetime obj)
+        list of starting dates in col order
+    ends: list[datetime obj]
+        list of ending dates in col order
+
+    Returns
+    -------
+    new_df: pd.DataFrame
+        DataFrame with NaN's before and after specified dates
+    """
+    d = {}
+    for c, s, e in zip(cols, starts, ends):
+        df_c = df[c]
+        df_c = pd.DataFrame(df_c[(df_c.index >= s) & (df_c.index <= e)])
+        d[c] = df_c[~df_c.index.duplicated(keep='first')]  # drop dupes
+    new_df = pd.DataFrame(index=df.index)
+    new_df = new_df.join(d[c] for c in cols) # add each col
+
+    return new_df
+
+def plot_explained_variance(ev, type='bar', toff=0.02, boff=0.08, yoff=None, **kwargs):
+    """
+    Plot explained variance of PCA
+
+    Parameters
+    ----------
+    ev: nd.array
         explained variance values
     type: str, default='bar'
         - 'bar': bar plots for cumulative variance
@@ -320,6 +473,10 @@ def plot_explained_variance(ev, type='bar', toff=0.02, boff=0.08, yoff=None, **k
         tottom y offset for individual variance values on plot
     **kwargs:
         kwargs for plt.plot() if type==line for cumulative variance
+
+    Returns
+    -------
+    plot of explained variance
     """
 
     ax = pd.Series(100*ev).plot(kind='bar', figsize=(10,5),
@@ -329,26 +486,27 @@ def plot_explained_variance(ev, type='bar', toff=0.02, boff=0.08, yoff=None, **k
     ax.set_yticks([0, 20, 40, 60, 80, 100])
     ax.set_xlabel('Principal Component')
 
-    # create a list to collect the plt.patches data
+    # Create a list to collect the plt.patches data.
     totals = []
-    # find the values and append to list
+
+    # Find the values and append to list.
     for i in ax.patches:
         totals.append(i.get_height())
 
-    # set individual bar lables using above list
+    # Set individual bar lables using patch list.
     total = sum(totals)
 
     yoff_d = {'bar': 0, 'line': 0.2}
-    yoff_d[type] = yoff if yoff else yoff_d[type]
+    yoff_d[type] = yoff_d[type] if yoff is None else yoff
 
-    # set individual bar lables using above list
+    # Set individual bar lables using patch list.
     for j, i in enumerate(ax.patches):
-        # get_x pulls left or right; get_height pushes up or down
+        # Get_x pulls left or right; get_height pushes up or down.
         if j > 0:
             ax.text(i.get_x()+boff, i.get_height()+1,
                     str(round(100*ev[j], 1))+'%', fontsize=11,
                     color='dimgrey')
-        ax.text(i.get_x()+toff, 100*np.cumsum(ev)[j]+1+yoff,
+        ax.text(i.get_x()+toff, 100*np.cumsum(ev)[j]+1+yoff_d[type],
                 str(round(100*np.cumsum(ev)[j], 1))+'%', fontsize=12,
                 color='dimgrey')
 
