@@ -187,7 +187,7 @@ Authors
 
 The main developer(s):
 
-- Jason R Becker (`jrbecker <https://github.com/jason-r-becker>`__,
+- Jason R Becker (`jrbecker <https://github.com/jason-r-becker>`__)
 
 
 .. |GitHub-Status| image:: https://img.shields.io/github/tag/jason-r-becker/empiricalutilities.svg?maxAge=86400
