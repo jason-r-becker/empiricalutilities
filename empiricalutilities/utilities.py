@@ -164,7 +164,9 @@ def correlation(df, sort_col=None, plot=False):
         return corr.sort_values([col], ascending=False)[col][1:]
 
 
-def color_table(df, title=None, rev_index=None, color='RdYlGn'):
+
+
+def color_table(df, axis=1, title=None, rev_index=None, color='RdYlGn'):
     """
     Creates color coded comparison table from dataframe values (green high, red low)
 
@@ -172,6 +174,8 @@ def color_table(df, title=None, rev_index=None, color='RdYlGn'):
     ----------
     df: pd.DataFrame
         DataFrame of values
+    axis: int, default=1
+        axis to normalize data upon
     title: str
         title for table
     rev_index: list(str)
@@ -183,17 +187,26 @@ def color_table(df, title=None, rev_index=None, color='RdYlGn'):
     -------
         plot of color coded table
     """
+
     labels = df.values
-    norm_df = df.divide(np.max(df), axis=1)
+    cdf = df.copy()
+    if axis == 1:
+        cdf -= cdf.mean(axis=0)
+        cdf /= cdf.std(axis=0)
+    else:
+        cdf = cdf.transpose()
+        cdf -= cdf.mean(axis=0)
+        cdf /= cdf.std(axis=0)
+        cdf = cdf.transpose()
 
     if rev_index:
         for i in rev_index:
-            norm_df.iloc[:, i] = 1 - norm_df.iloc[:, i]
+            cdf.iloc[:, i] = 1 - cdf.iloc[:, i]
 
     plt.figure()
     if title:
         plt.title(title)
-    sns.heatmap(norm_df, cmap='RdYlGn', linewidths=0.5, annot=labels,
+    sns.heatmap(cdf, cmap='RdYlGn', linewidths=0.5, annot=labels,
                 fmt='0.1f', cbar=False)
     plt.xticks(rotation=0)
     plt.yticks(rotation=0)
