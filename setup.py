@@ -5,12 +5,12 @@ from os import path
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
+with open(path.join(here, 'README.rst')) as f:
     long_description = f.read()
 
 setup(
     name='empiricalutilities',
-    version='0.0.15',
+    version='0.1.2',
     description='A Python project for empirical data manipulation.',
     long_description=long_description,
     author='Jason R Becker',

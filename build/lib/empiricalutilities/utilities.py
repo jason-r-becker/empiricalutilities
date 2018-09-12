@@ -84,7 +84,7 @@ def find_max_locs(df):
                 ij_max.append((i, j))
     return(ij_max)
 
-def combine_errors_table(vals, errs, latex_format=False):
+def combine_errors_table(vals, errs, prec=3, latex_format=False):
     """
     Combines standard errors and values into DataFrame.
 
@@ -96,7 +96,7 @@ def combine_errors_table(vals, errs, latex_format=False):
         errors for values
     latex_format: bool
         characters to use to separate values and errors
-        {True: ' pm ', False: ' +/- '}
+        {True: ' \pm ', False: ' +/- '}
 
     Returns
     -------
@@ -104,20 +104,22 @@ def combine_errors_table(vals, errs, latex_format=False):
         DataFrame of values +/- errors
     """
 
-    def build_error_column(val, err, sep):
+    def build_error_column(val, err, latex_format):
         """Combine single column of values and errors with specifed separator"""
         v_e = []
         for i, (v, e) in enumerate(zip(val, err)):
-            v_e.append('{} {} {}'.format(v, sep, e))
+            if latex_format:
+                v_e.append(f'{v:.{prec}f} $\pm$ {abs(e):.{prec}f}')
+            else:
+                v_e.append(f'{v:.{prec}f} ± {abs(e):.{prec}f}')
         return np.asarray(v_e)
 
     if vals.size != errs.size:
         raise ValueError(f'vals size {vals.size} does not match errs {err.size}')
     df = pd.DataFrame(index=vals.index)
 
-    sep = 'pm' if latex_format else '+/-'
     for col in vals.columns:
-        df[col] = build_error_column(vals[col], errs[col], sep=sep)
+        df[col] = build_error_column(vals[col], errs[col], latex_format)
     return df
 
 def correlation(df, sort_col=None, plot=False):
@@ -162,7 +164,9 @@ def correlation(df, sort_col=None, plot=False):
         return corr.sort_values([col], ascending=False)[col][1:]
 
 
-def color_table(df, title=None, rev_index=None, color='RdYlGn'):
+
+
+def color_table(df, axis=1, title=None, rev_index=None, color='RdYlGn'):
     """
     Creates color coded comparison table from dataframe values (green high, red low)
 
@@ -170,6 +174,8 @@ def color_table(df, title=None, rev_index=None, color='RdYlGn'):
     ----------
     df: pd.DataFrame
         DataFrame of values
+    axis: int, default=1
+        axis to normalize data upon
     title: str
         title for table
     rev_index: list(str)
@@ -181,17 +187,26 @@ def color_table(df, title=None, rev_index=None, color='RdYlGn'):
     -------
         plot of color coded table
     """
+
     labels = df.values
-    norm_df = df.divide(np.max(df), axis=1)
+    cdf = df.copy()
+    if axis == 1:
+        cdf -= cdf.mean(axis=0)
+        cdf /= cdf.std(axis=0)
+    else:
+        cdf = cdf.transpose()
+        cdf -= cdf.mean(axis=0)
+        cdf /= cdf.std(axis=0)
+        cdf = cdf.transpose()
 
     if rev_index:
         for i in rev_index:
-            norm_df.iloc[:, i] = 1 - norm_df.iloc[:, i]
+            cdf.iloc[:, i] = 1 - cdf.iloc[:, i]
 
     plt.figure()
     if title:
         plt.title(title)
-    sns.heatmap(norm_df, cmap='RdYlGn', linewidths=0.5, annot=labels,
+    sns.heatmap(cdf, cmap='RdYlGn', linewidths=0.5, annot=labels,
                 fmt='0.1f', cbar=False)
     plt.xticks(rotation=0)
     plt.yticks(rotation=0)
