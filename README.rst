@@ -179,7 +179,7 @@ Contributions are welcome.
 LICENCE
 -------
 
-Open Source (OSI approved): |LICENCE|
+Open Source (OSI approved): |LICENSE|
 
 
 Authors
