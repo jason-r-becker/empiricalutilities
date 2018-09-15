@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import re
 
-from matplotlib import cm
 from tabulate import tabulate
 
 
@@ -84,6 +83,20 @@ def find_max_locs(df):
                 ij_max.append((i, j))
     return(ij_max)
 
+def find_min_locs(df):
+    """Find iloc location of minimum values in pd.DataFrame"""
+    num_df = df.apply(pd.to_numeric, errors='coerce').values
+    row_min = num_df.min(axis=1)
+    ij_min = []
+
+    for i, i_min in enumerate(row_min):
+        if np.isnan(i_min):  # ignore nan values
+            continue
+        for j in range(num_df.shape[1]):
+            if num_df[i, j] == i_min:
+                ij_min.append((i, j))
+    return(ij_min)
+
 def combine_errors_table(vals, errs, prec=3, latex_format=False):
     """
     Combines standard errors and values into DataFrame.
@@ -122,101 +135,88 @@ def combine_errors_table(vals, errs, prec=3, latex_format=False):
         df[col] = build_error_column(vals[col], errs[col], latex_format)
     return df
 
-def correlation(df, sort_col=None, plot=False):
-    """
-    Find correlation of DataFrame, plot results and/or
-    return sorted correlations for a sincle column of
-    the DataFrame.
-
-    Parameters
-    ----------
-    df: pd.DataFrame
-        DataFrame of input values
-    sort_col: str, default=None
-        column to sort correlations on. If provided,
-        function returns DataFrame of results
-    plot: bool, default=False
-        if True plot correlation matrix
-
-    Returns
-    -------
-    plot of correlation matrix if plot=True
-    correlation results for one column if sort_col is True
-    """
-
-    corr = df.corr().abs()
-
-    if plot:
-        # Plot results
-        fig, ax = plt.subplots(figsize=(12, 10))
-        ax.matshow(corr)
-        cmap = cm.get_cmap('coolwarm', 300)
-        cax = ax.imshow(corr, interpolation="nearest", cmap=cmap)
-        plt.xticks(range(len(corr.columns)), corr.columns)
-        plt.yticks(range(len(corr.columns)), corr.columns)
-        for tick in ax.get_xticklabels():
-            tick.set_rotation(45)
-        cax.set_clim([0, 1])
-        fig.colorbar(cax, ticks=[0, .25, .5, .75, 1])
-
-
-    if ret_col:
-        return corr.sort_values([col], ascending=False)[col][1:]
-
-
-
-
-def color_table(df, axis=1, title=None, rev_index=None, color='RdYlGn'):
-    """
-    Creates color coded comparison table from dataframe values (green high, red low)
-
-    Parameters
-    ----------
-    df: pd.DataFrame
-        DataFrame of values
-    axis: int, default=1
-        axis to normalize data upon
-    title: str
-        title for table
-    rev_index: list(str)
-        list of column names to reverse color coding
-    color: str, default='RdYlGn'
-        color palette for table
-
-    Returns
-    -------
-        plot of color coded table
-    """
-
-    labels = df.values
-    cdf = df.copy()
-    if axis == 1:
-        cdf -= cdf.mean(axis=0)
-        cdf /= cdf.std(axis=0)
-    else:
-        cdf = cdf.transpose()
-        cdf -= cdf.mean(axis=0)
-        cdf /= cdf.std(axis=0)
-        cdf = cdf.transpose()
-
-    if rev_index:
-        for i in rev_index:
-            cdf.iloc[:, i] = 1 - cdf.iloc[:, i]
-
-    plt.figure()
-    if title:
-        plt.title(title)
-    sns.heatmap(cdf, cmap='RdYlGn', linewidths=0.5, annot=labels,
-                fmt='0.1f', cbar=False)
-    plt.xticks(rotation=0)
-    plt.yticks(rotation=0)
-
-
 def replace_multiple(text, dic):
     """replace multiple text fragments in a string"""
     for i, j in dic.items():
         text = text.replace(i, j)
     return text
+
+def greeks_to_latex(text):
+    """
+    Transform text containing greeks letters with/without
+    subscripts to proper LaTeX representation.
+
+    Parameters
+    ----------
+    text: str
+        text containing greek letter to be formatted to LaTeX
+
+    Returns
+    -------
+    text: str
+        text with all greeks formatted into LaTeX syntax
+
+    Examples
+    --------
+    greeks_to_latex('alpha=0.5, Beta=2, \tgamma_=3, \nDelta^4=16')
+    >>> $\alpha$= 0.5, $\Beta$= 2, 	gamma_=3,
+    >>> $\Delta^{4}$=16
+
+    greeks_to_latex('partial u / partial t - alpha_gold nabla^2 u = 0')
+    >>> $\partial$ u / $\partial$ t - $\alpha_{gold}$ $\nabla^{2}$ u = 0
+    """
+
+    greeks = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta',
+              'theta', 'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron',
+              'pi', 'rho', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi',
+              'omega','varepsilon', 'vartheta', 'varpi', 'varrho', 'varsigma',
+              'varphi', 'digamma', 'partial', 'eth', 'hbar', 'nabla', 'infty',
+              'aleph', 'beth', 'gimel',
+              ]
+
+    # Capitalize each greek letter and append to greeks list.
+    greeks = greeks + [greek.title() for greek in greeks]
+    text = ' ' + text  # add leading space
+
+    for greek in greeks:
+        # Case 1: 'greek_123'
+        p = re.compile('\s'+greek+'[_]\w+')
+        findings = p.findall(text)
+        for finding in findings:
+            lead_char = re.search('\s', finding).group(0)
+            split = finding.split('_')
+            new = r'$\{}_{{{}}}$'.format(*split).replace(lead_char, '')
+            text = text.replace(finding, lead_char+new)
+
+        # Case 2: 'greek123'
+        p = re.compile('\s'+greek+'\d+')
+        findings = p.findall(text)
+        for finding in findings:
+            lead_char = re.search('\s', finding).group(0)
+            letter = finding[:len(lead_char+greek)]
+            num = finding[len(lead_char+greek):]
+            new = r'$\{}_{{{}}}$'.format(letter, num).replace(lead_char, '')
+            text = text.replace(finding, lead_char+new)
+
+        # Case 3: 'greek^123'
+        p = re.compile('\s'+greek+'[\^]\d+')
+        findings = p.findall(text)
+        for finding in findings:
+            lead_char = re.search('\s', finding).group(0)
+            split = finding.split('^')
+            new = r'$\{}^{{{}}}$'.format(*split).replace(lead_char, '')
+            text = text.replace(finding, lead_char+new)
+
+        # Case 4: 'greek'
+        p = re.compile('\s'+greek+'[^_]')
+        findings = p.findall(text)
+        for finding in findings:
+            lead_char = re.search('\s', finding).group(0)
+            letter = re.sub(r'\W+', '', finding) #remove non-alphanum chars
+            new = r'$\{}${}'.format(letter, finding[-1]).replace(lead_char, '')
+            text = text.replace(finding, lead_char+new+' ')
+
+    return text[1:]  # remove leading space
 
 def latex_print(obj,
                 prec=3,
@@ -227,7 +227,8 @@ def latex_print(obj,
                 hide_index=False,
                 int_vals=False,
                 font_size=None,
-                multi_col_header=False,
+                greeks=True,
+                multi_row_header=False,
                 bold_locs=None,
                 ):
 
@@ -239,38 +240,40 @@ def latex_print(obj,
 
     obj: {ndarray, matrix, list, pd.Series, pd.DataFrame}
         object to convert for printing in LaTeX
-    prec: int
+    prec: int, default=3
         precision for printing decimals
 
     Matrix Parameters
     -----------------
-    matrix_type: str
+    matrix_type: str, defualt='b'
         style for matrix in latex
         {'b': bracket, 'p': paranthesis}
 
     DataFrame Parameters
     --------------------
-    col_fmt: str
+    col_fmt: str, default=None
         column format for latex, (e.g., 'lrc')
-    caption: str
+    caption: str, default=None
         add caption to table
-    adjust: bool
+    adjust: bool, default=False
         if True, adjust formatting to fit in LaTeX page
         width for large tables & arrays
          - requires \usepackage{adjustbox} in LaTeX preamble
-    hide_index: bool
+    hide_index: bool, default=False
         if True remove index from printing in LaTeXint_vals: bool
         if True, remove decimal places if all are 0
         (e.g., 3.00 --> 3)
-    font_size: str
+    font_size: str, default=None
         font size for tables
         {'tiny', 'scriptsize', 'footnotesize', 'small', 'normalsize',
         'large', 'Large', 'LARGE', 'huge', 'Huge'}
-    multi_col_header: bool
-        if True, use \thead to make header column multiple lines.
+    greeks: bool, default=True
+        convert all instances of greek letters to LaTeX syntax
+    multi_row_header: bool, default=False
+        if True, use \\thead to make header column multiple lines.
             - expects '*' as separator between lines in header column
             - requires \usepackage{makecell} in LaTeX preamble
-    bold_locs: list(tuples)
+    bold_locs: list(tuples), default=None
         ilocs of table values to bold
 
     Returns
@@ -328,7 +331,7 @@ def latex_print(obj,
         if int_vals:
             reps = {'.{} '.format('0'*i): '  '+' '*i for i in range(1, 10)}
 
-        if multi_col_header:
+        if multi_row_header:
             header = obj.to_latex().split('toprule\n')[1].split('\\\\\n\midrule')[0]
             new_header = ''
             for i, h in enumerate(header.split('&')):
@@ -347,7 +350,11 @@ def latex_print(obj,
         reps['\_'] = '_'
 
         # Print table.
-        print(replace_multiple(obj.to_latex(column_format=fmt), reps), end='')
+        table = replace_multiple(obj.to_latex(column_format=fmt), reps), end=''
+        if greeks:
+            print(greeks_to_latex(table))
+        else:
+            print(table)
 
         # Print end of table settings.
         if adjust:
@@ -468,72 +475,3 @@ def remove_outer_periods(df, cols, starts, ends):
     new_df = new_df.join(d[c] for c in cols) # add each col
 
     return new_df
-
-def plot_explained_variance(ev, type='bar', toff=0.02, boff=0.08, yoff=None, **kwargs):
-    """
-    Plot explained variance of PCA
-
-    Parameters
-    ----------
-    ev: nd.array
-        explained variance values
-    type: str, default='bar'
-        - 'bar': bar plots for cumulative variance
-        - 'line': line plot for cumulative variance
-    toff: float
-        top x offset for cumulative variance values on plot
-    boff: float
-        bottom x offset for individual variance values on plot
-    yoff: float
-        tottom y offset for individual variance values on plot
-    **kwargs:
-        kwargs for plt.plot() if type==line for cumulative variance
-
-    Returns
-    -------
-    plot of explained variance
-    """
-
-    ax = pd.Series(100*ev).plot(kind='bar', figsize=(10,5),
-                   color='steelblue', fontsize=13)
-
-    ax.set_ylabel('Explained Variance')
-    ax.set_yticks([0, 20, 40, 60, 80, 100])
-    ax.set_xlabel('Principal Component')
-
-    # Create a list to collect the plt.patches data.
-    totals = []
-
-    # Find the values and append to list.
-    for i in ax.patches:
-        totals.append(i.get_height())
-
-    # Set individual bar lables using patch list.
-    total = sum(totals)
-
-    yoff_d = {'bar': 0, 'line': 0.2}
-    yoff_d[type] = yoff_d[type] if yoff is None else yoff
-
-    # Set individual bar lables using patch list.
-    for j, i in enumerate(ax.patches):
-        # Get_x pulls left or right; get_height pushes up or down.
-        if j > 0:
-            ax.text(i.get_x()+boff, i.get_height()+1,
-                    str(round(100*ev[j], 1))+'%', fontsize=11,
-                    color='dimgrey')
-        ax.text(i.get_x()+toff, 100*np.cumsum(ev)[j]+1+yoff_d[type],
-                str(round(100*np.cumsum(ev)[j], 1))+'%', fontsize=12,
-                color='dimgrey')
-
-    xlab = [f'PC-{i+1}' for i, _ in enumerate(ax.patches)]
-    if type == 'bar':
-        ax2 = pd.Series(np.cumsum(100*ev)).plot(kind='bar', figsize=(10,5),
-                   color='steelblue', fontsize=8, alpha=0.25)
-        for i in ax2.patches:
-            totals.append(i.get_height())
-        ax2.set_xticklabels(xlab, rotation='horizontal')
-        ax2.xaxis.grid(False)
-    elif type == 'line':
-        plt.plot(np.cumsum(100*ev), ':o', ms=8, c='steelblue', alpha=0.75, **kwargs)
-        ax.xaxis.grid(False)
-        ax.set_xticklabels(xlab, rotation='horizontal')

@@ -84,6 +84,20 @@ def find_max_locs(df):
                 ij_max.append((i, j))
     return(ij_max)
 
+def find_min_locs(df):
+    """Find iloc location of minimum values in pd.DataFrame"""
+    num_df = df.apply(pd.to_numeric, errors='coerce').values
+    row_min = num_df.min(axis=1)
+    ij_min = []
+
+    for i, i_min in enumerate(row_min):
+        if np.isnan(i_min):  # ignore nan values
+            continue
+        for j in range(num_df.shape[1]):
+            if num_df[i, j] == i_min:
+                ij_min.append((i, j))
+    return(ij_min)
+
 def combine_errors_table(vals, errs, prec=3, latex_format=False):
     """
     Combines standard errors and values into DataFrame.
@@ -227,7 +241,7 @@ def latex_print(obj,
                 hide_index=False,
                 int_vals=False,
                 font_size=None,
-                multi_col_header=False,
+                multi_row_header=False,
                 bold_locs=None,
                 ):
 
@@ -266,7 +280,7 @@ def latex_print(obj,
         font size for tables
         {'tiny', 'scriptsize', 'footnotesize', 'small', 'normalsize',
         'large', 'Large', 'LARGE', 'huge', 'Huge'}
-    multi_col_header: bool
+    multi_row_header: bool
         if True, use \thead to make header column multiple lines.
             - expects '*' as separator between lines in header column
             - requires \usepackage{makecell} in LaTeX preamble
@@ -328,7 +342,7 @@ def latex_print(obj,
         if int_vals:
             reps = {'.{} '.format('0'*i): '  '+' '*i for i in range(1, 10)}
 
-        if multi_col_header:
+        if multi_row_header:
             header = obj.to_latex().split('toprule\n')[1].split('\\\\\n\midrule')[0]
             new_header = ''
             for i, h in enumerate(header.split('&')):

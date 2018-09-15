@@ -118,10 +118,11 @@ needs to print with LaTeX formatting.
 
 We can also explore some of the advanced options available in ``latex_print()``.
 First, the table header can be split into two rows, which is accomplished with
-the ``multi_col_header=True`` argument. When True,  ``latex_print()`` expects
+the ``multi_row_header=True`` argument. When True,  ``latex_print()`` expects
 a DataFrame with column headers containing a ``'*'`` to mark the start of each
-new column. We will use list comprehension to create a new column header list where
-all spaces are replaced with ``' * '`` and set this as the new table header.
+new row. We will use list comprehension to create a new column header list where
+spaces are replaced with ``' * '``, resulting in the top header row being
+player position and bottom being player number.
 
 .. code:: python
 
@@ -141,8 +142,8 @@ and number second in decreasing order from 9.
 
 Additionally, we can add some expressive ability to the table by bolding the score
 of the top performer for each drill. ``find_max_locs()`` identifies the
-location of each rowwise maximum in the DataFrame. We must be careful to sort
-the original table identially to the table with standard errors when the order
+location of each row-wise maximum in the DataFrame. We must be careful to sort
+the original table identically to the table with standard errors when the order
 of header columns is altered.
 
 .. code:: python
@@ -160,7 +161,7 @@ your LaTeX environment, adjusting the text size as needed.
     eu.latex_print(error_table[sorted_cols],
                    caption='Advanced example of printing to LaTeX.',
                    adjust=True,
-                   multi_col_header=True,
+                   multi_row_header=True,
                    hide_index=True,
                    bold_locs=max_locs,
                    )
@@ -176,7 +177,7 @@ All source code is hosted on `GitHub <https://github.com/tjason-r-becker/empiric
 Contributions are welcome.
 
 
-LICENCE
+LICENSE
 -------
 
 Open Source (OSI approved): |LICENSE|
