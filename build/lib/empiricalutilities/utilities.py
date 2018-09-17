@@ -350,11 +350,11 @@ def latex_print(obj,
         reps['\_'] = '_'
 
         # Print table.
-        table = replace_multiple(obj.to_latex(column_format=fmt), reps), end=''
+        table = replace_multiple(obj.to_latex(column_format=fmt), reps)
         if greeks:
-            print(greeks_to_latex(table))
+            print(greeks_to_latex(table), end='')
         else:
-            print(table)
+            print(table, end='')
 
         # Print end of table settings.
         if adjust:
