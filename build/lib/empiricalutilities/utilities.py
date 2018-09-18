@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import re
 
+from datetime import timedelta
 from tabulate import tabulate
 
 
@@ -438,8 +439,8 @@ def datetime_range(start, end, minute_delta):
 
     def dt_gen(start, end, delta):
         """Create generator of datetimes with given timedelta"""
-        current = start
-        while current < end:
+        current = pd.to_datetime(start, infer_datetime_format=True)
+        while current < pd.to_datetime(end, infer_datetime_format=True):
             yield current
             current += delta
 
