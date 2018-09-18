@@ -4,6 +4,7 @@ import pprint
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
+import os
 
 from datetime import timedelta
 from tabulate import tabulate
@@ -29,6 +30,7 @@ def prettyPrint(obj):
         pp.pprint(obj)
     else:
         raise ValueError('Error: {} not yet supported'.format(type(obj)))
+
 
 
 def custom_sort(str_list, alphabet):
@@ -232,8 +234,7 @@ def latex_print(obj,
                 multi_row_header=False,
                 bold_locs=None,
                 ):
-
-    r"""
+    """
     Returns object with syntax formatted for LaTeX
 
     Parameters
@@ -350,7 +351,7 @@ def latex_print(obj,
         reps['\}'] = '}'
         reps['\_'] = '_'
         reps[r'\textasciicircum '] = '^'
-        
+
         # Print table.
         table = replace_multiple(obj.to_latex(column_format=fmt), reps)
         if greeks:
@@ -477,3 +478,80 @@ def remove_outer_periods(df, cols, starts, ends):
     new_df = new_df.join(d[c] for c in cols) # add each col
 
     return new_df
+
+def save_fig(fid, dir=None, dpi=300):
+    """Save clean figure to specified location"""
+    create_dirs(dir)
+    full_fid = f'{dir}/{fid}.png' if dir else f'{fid}.png'
+    plt.savefig(full_fid, dpi=dpi, bbox_inches='tight')
+
+
+def create_dirs(dir):
+    """Create directories if they do not exist"""
+    if dir is None:
+        return
+    dirs = dir.split('/')
+    for cur_dir in dirs:
+        full_dir = cur_dir if cur_dir==dirs[0] else f'{full_dir}/{cur_dir}'
+        if not os.path.isdir(full_dir):
+            os.makedirs(full_dir)
+
+def latex_figure(fids,
+                 width=0.8,
+                 caption=None,
+                 subcaptions=None,
+                 dir=None,
+                 tab=2,
+                 ):
+    """
+    Returns figure with syntax formatted for LaTeX
+
+    - requires \usepackage{graphicx, caption, subcaption}
+      in LaTeX preamble
+
+    Parameters
+    ----------
+    fids: str, list(str)
+        filenames for figure(s)
+    caption: str, default=None
+        caption for figure
+    subcaptions: list(str), defualt=None
+        subcaptions for each subfigure
+    dir: str, default=None
+        directory where figures are located
+    tab: int, default=3
+        number of spaces to indent each tab
+    """
+
+    # Convert fids to list of full path names.
+    if dir:
+        if isinstance(fids, str):
+            fids = [f'{dir}/{fids}']
+        else:
+            fids = [f'{dir}/{fid}' for fid in list(fids)]
+    else:
+        fids = [fids] if isinstance(fids, str) else list(fids)
+
+    n = len(fids)
+    subcaps = subcaptions if subcaptions else [None]*n
+    t = ' ' * tab  # tab size
+
+    # Add figures to string to be printed.
+    fout = f'\\begin{{figure}}[H]\n{t}\centering\n'
+    if n == 1:
+        fout += f'{t}\includegraphics[width={width}\\textwidth]{{{fids[0]}}}\n'
+        fout += f'{t}\caption{{{caption}}}' if caption else '{t}%\caption{}'
+    else:
+        for fid, subcap, in zip(fids, subcaps):
+            fout += f'{t}\\begin{{subfigure}}[b]{{{width/n:.3f}\\textwidth}}'
+            fout += f'\n{t}{t}\centering\n{t}{t}'
+            fout += f'\includegraphics[width=1\\textwidth]{{{fid}}}\n{t}{t}'
+            fout += f'\caption{{{subcap}}}' if subcap else '%\caption{}'
+            fout += f'\n{t}\end{{subfigure}}\n{t}'
+            if fid != fids[-1]:
+                fout += '\hfill\n'
+            else:
+                fout += f'\caption{{{caption}}}' if caption else '%\caption{}'
+
+    fout += '\n\end{figure}'
+    print(fout)

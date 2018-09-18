@@ -349,7 +349,8 @@ def latex_print(obj,
         reps['\{'] = '{'
         reps['\}'] = '}'
         reps['\_'] = '_'
-
+        reps[r'\textasciicircum '] = '^'
+        
         # Print table.
         table = replace_multiple(obj.to_latex(column_format=fmt), reps)
         if greeks:

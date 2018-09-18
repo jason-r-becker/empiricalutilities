@@ -10,7 +10,7 @@ with open(path.join(here, 'README.rst')) as f:
 
 setup(
     name='empiricalutilities',
-    version='0.1.8',
+    version='0.1.9',
     description='A Python project for empirical data manipulation.',
     long_description=long_description,
     author='Jason R Becker',
@@ -30,6 +30,7 @@ setup(
     packages=find_packages(exclude=['contrib', 'docs', 'tests', 'build']),
     install_requires=[
         'cycler',
+        'datetime'
         'kiwisolver',
         'matplotlib',
         'mpmath',

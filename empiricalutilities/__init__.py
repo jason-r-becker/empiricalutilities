@@ -2,7 +2,8 @@
 from .utilities import prettyPrint, custom_sort, add_start, find_max_locs
 from .utilities import find_min_locs, combine_errors_table, replace_multiple
 from .utilities import greeks_to_latex, latex_print, date_subset, datetime_range
-from .utilities import remove_outer_periods
+from .utilities import remove_outer_periods, save_fig, create_dirs
+from .utilities import latex_figure
 
 from .empiricalmethods import OLS, AR, ARCH_1, sym_solve_matrix, t_test
 
