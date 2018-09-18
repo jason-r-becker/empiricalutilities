@@ -11,6 +11,7 @@ def plot_color_table(df,
                      title=None,
                      rev_index=None,
                      color='RdYlGn',
+                     prec=1,
                      ):
     """
     Creates color coded comparison table from dataframe values (green high, red low)
@@ -27,6 +28,8 @@ def plot_color_table(df,
         list of column names to reverse color coding
     color: str, default='RdYlGn'
         color palette for table
+    prec: int, default=1
+        decimals places to show
 
     Returns
     -------
@@ -52,7 +55,7 @@ def plot_color_table(df,
     if title:
         plt.title(title)
     sns.heatmap(cdf, cmap='RdYlGn', linewidths=0.5, annot=labels,
-                fmt='0.1f', cbar=False)
+                fmt=f'0.{prec}f', cbar=False)
     plt.xticks(rotation=0)
     plt.yticks(rotation=0)
 
