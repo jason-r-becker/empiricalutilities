@@ -23,7 +23,7 @@ class Memoize:
 
 def prettyPrint(obj):
     """Print object to screen in nice formatting"""
-    if isinstance(obj, pd.DataFrame):
+    if isinstance(obj, pd.DataFrame):import empi
         print(tabulate(obj, headers='keys', tablefmt='psql'))
     elif isinstance(obj, dict):
         pp = pprint.PrettyPrinter(indent=4)
@@ -31,6 +31,74 @@ def prettyPrint(obj):
     else:
         raise ValueError('Error: {} not yet supported'.format(type(obj)))
 
+def rolling_sum(a, n, pad=None):
+    """
+    Vectorized implementation of a rolling sum.
+
+    Parameters
+    ----------
+    a: array_like
+        Calculate rolling sum of these values.
+    n: int
+        Number of elements to include in rolling sum.
+    pad: None, False, or int/float, default=None
+        Type of padding to be applied to returned array.
+        - None: No padding, partial sums are included for first n-1 elements.
+        - False: First n-1 elemnts are skipped and not included in returned array.
+        - int/float: First n-1 elements are replaced with any number (e.g., 0).
+        - list/tuple: First n-1 elements are replaced by list or tuple of size n-1.
+    Returns
+    -------
+    ret: ndarray
+        Return a new array that is rolling sum of original.
+    """
+
+    ret = np.cumsum(a, dtype=np.float64)
+    ret[n:] = ret[n:] - ret[:-n]
+
+    if pad is None:
+        return ret
+
+    if pad is False:
+        return ret[n-1:]
+
+    ret[:n-1] =  pad if type(pad) in [list, tuple] else (n-1) * [pad]
+    return ret
+
+def rolling_mean(a, n, pad=None):
+    """
+    Vectorized implementation of a rolling mean.
+
+    Parameters
+    ----------
+    a: array_like
+        Calculate rolling mean of these values.
+    n: int
+        Number of elements to include in rolling mean.
+    pad: None, False, or int/float, default=None
+        Type of padding to be applied to returned array.
+        - None: No padding, partial means are included for first n-1 elements.
+        - False: First n-1 elemnts are skipped and not included in returned array.
+        - int/float: First n-1 elements are replaced with any number (e.g., 0).
+        - list/tuple: First n-1 elements are replaced by list or tuple of size n-1.
+    Returns
+    -------
+    ret: ndarray
+        Return a new array that is rolling mean of original.
+    """
+    ret = np.cumsum(a, dtype=np.float64)
+    ret[n:] = ret[n:] - ret[:-n]
+    ret[n-1:] = ret[n-1:] / n
+
+    if pad is None:
+        ret[:n-1] =  ret[:n-1] / np.arange(1, n)
+        return ret
+
+    if pad is False:
+        return ret[n-1:]
+
+    ret[:n-1] =  pad if type(pad) in [list, tuple] else (n-1) * [pad]
+    return ret
 
 
 def custom_sort(str_list, alphabet):
@@ -234,7 +302,7 @@ def latex_print(obj,
                 multi_row_header=False,
                 bold_locs=None,
                 ):
-    """
+    r"""
     Returns object with syntax formatted for LaTeX
 
     Parameters
@@ -501,9 +569,9 @@ def latex_figure(fids,
                  caption=None,
                  subcaptions=None,
                  dir=None,
-                 tab=2,
+                 tab=3,
                  ):
-    """
+    r"""
     Returns figure with syntax formatted for LaTeX
 
     - requires \usepackage{graphicx, caption, subcaption}
@@ -540,7 +608,7 @@ def latex_figure(fids,
     fout = f'\\begin{{figure}}[H]\n{t}\centering\n'
     if n == 1:
         fout += f'{t}\includegraphics[width={width}\\textwidth]{{{fids[0]}}}\n'
-        fout += f'{t}\caption{{{caption}}}' if caption else '{t}%\caption{}'
+        fout += f'{t}\caption{{{caption}}}' if caption else f'{t}%\caption{{}}'
     else:
         for fid, subcap, in zip(fids, subcaps):
             fout += f'{t}\\begin{{subfigure}}[b]{{{width/n:.3f}\\textwidth}}'
